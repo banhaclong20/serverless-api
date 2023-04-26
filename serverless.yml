@@ -1,14 +1,20 @@
-service: notes-api-serverless
+service: notes-api
 frameworkVersion: '2'
 
 provider:
   name: aws
-  runtime: nodejs12.x
+  runtime: nodejs14.x
   lambdaHashingVersion: 20201221
-  stage: dev
+  stage: ${opt:stage, 'dev'}
   region: us-east-1
 
 functions:
+  authorizer:
+    handler: authorizer.handler
+    environment:
+      COGNITO_USERPOOL_ID: !Ref cognitoUserPool
+      COGNITO_WEB_CLIENT_ID: !Ref cognitoUserPoolWebclient
+
   createNote:
     handler: handler.createNote
     environment:
@@ -22,6 +28,7 @@ functions:
       - http:
           method: post
           path: notes
+          authorizer: authorizer
 
   updateNote:
     handler: handler.updateNote
@@ -36,6 +43,7 @@ functions:
       - http:
           method: put
           path: notes/{id}
+          authorizer: authorizer
 
   deleteNote:
     handler: handler.deleteNote
@@ -50,6 +58,7 @@ functions:
       - http:
           method: delete
           path: notes/{id}
+          authorizer: authorizer
 
   getAllNotes:
     handler: handler.getAllNotes
@@ -64,20 +73,13 @@ functions:
       - http:
           method: get
           path: notes
+          authorizer:
+            name: userpool_authorizer
+            arn: ${ssm:/notes/${self:provider.stage}/userPoolArn}
 
 plugins:
   - serverless-iam-roles-per-function
 
+# you can add CloudFormation resource templates here
 resources:
-  Resources:
-    notesTable:
-      Type: AWS::DynamoDB::Table
-      Properties:
-        TableName: notes_api
-        BillingMode: PAY_PER_REQUEST
-        AttributeDefinitions:
-          - AttributeName: notesId
-            AttributeType: S
-        KeySchema:
-          - AttributeName: notesId
-            KeyType: HASH
+  Resources: ${file(resources.yml)}
